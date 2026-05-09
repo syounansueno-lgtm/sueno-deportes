@@ -4,29 +4,36 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Calendar, Bell, Image, BookOpen, Users, BarChart3,
-  User, LogOut, Home, ChevronRight
+  Megaphone, Clock, Users, ShoppingBag, Library,
+  Package, Phone, Calendar, LogOut, ChevronRight,
+  Shield
 } from 'lucide-react'
 import type { Profile } from '@/types'
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'ホーム', icon: Home },
-  { href: '/dashboard/schedule', label: '予定・出欠', icon: Calendar },
-  { href: '/dashboard/announcements', label: 'お知らせ', icon: Bell },
-  { href: '/dashboard/album', label: '写真アルバム', icon: Image },
-  { href: '/dashboard/diary', label: '活動日記', icon: BookOpen },
-]
+type NavItem = {
+  href: string
+  label: string
+  icon: React.ComponentType<{ size?: number }>
+  adminOnly?: boolean
+}
 
-const ADMIN_ITEMS = [
+const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
+  { href: '/dashboard/attendance', label: '勤怠・日報', icon: Clock },
   { href: '/dashboard/members', label: '会員管理', icon: Users },
-  { href: '/dashboard/finance', label: '経理・会費', icon: BarChart3 },
+  { href: '/dashboard/schedule', label: '予定・カレンダー', icon: Calendar },
+  { href: '/dashboard/merchandise', label: '物販・注文', icon: ShoppingBag },
+  { href: '/dashboard/library', label: '共有ライブラリ', icon: Library },
+  { href: '/dashboard/equipment', label: '忘れ物・備品', icon: Package },
+  { href: '/dashboard/emergency', label: '緊急連絡', icon: Phone, adminOnly: true },
 ]
 
 type Props = {
   profile: Profile | null
+  unreadCount?: number
 }
 
-export default function Sidebar({ profile }: Props) {
+export default function Sidebar({ profile, unreadCount = 0 }: Props) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -36,103 +43,83 @@ export default function Sidebar({ profile }: Props) {
     router.push('/login')
   }
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'staff'
+  const isAdmin = profile?.role === 'admin'
 
   return (
-    <aside className="w-64 bg-green-900 text-white flex flex-col min-h-screen">
+    <aside className="w-64 bg-gray-900 text-white flex flex-col min-h-screen">
       {/* ヘッダー */}
-      <div className="p-5 border-b border-green-800">
+      <div className="p-4 border-b border-gray-700">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-lg flex-shrink-0">
-            ⚽
+          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-lg flex-shrink-0 font-bold">
+            V
           </div>
           <div className="min-w-0">
-            <p className="font-bold text-sm truncate">スエニョデポルテス</p>
-            <p className="text-green-300 text-xs truncate">会員専用</p>
+            <p className="font-bold text-sm">ヴェルディ相模原</p>
+            <p className="text-gray-400 text-xs">スタッフ管理システム</p>
           </div>
         </div>
       </div>
 
       {/* プロフィール */}
       {profile && (
-        <div className="p-4 border-b border-green-800">
+        <div className="px-4 py-3 border-b border-gray-700 bg-gray-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-green-700 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+            <div className="w-9 h-9 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
               {profile.full_name.charAt(0)}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">{profile.full_name}</p>
-              <p className="text-green-400 text-xs">{
-                profile.role === 'admin' ? '管理者' :
-                profile.role === 'staff' ? 'スタッフ' :
-                profile.role === 'player' ? '選手' :
-                profile.role === 'parent' ? '保護者' : '会員'
-              }</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                {profile.role === 'admin' && (
+                  <Shield size={10} className="text-yellow-400" />
+                )}
+                <p className="text-xs text-gray-400">
+                  {profile.role === 'admin' ? '管理者' :
+                   profile.role === 'staff' ? 'スタッフ' :
+                   profile.role === 'player' ? '選手' : '会員'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* ナビゲーション */}
-      <nav className="flex-1 p-3 space-y-1">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
+      <nav className="flex-1 p-3 space-y-0.5">
+        {NAV_ITEMS.filter(item => !item.adminOnly || isAdmin).map(({ href, label, icon: Icon, adminOnly }) => {
+          const active = pathname.startsWith(href)
+          const isAnnouncements = href === '/dashboard/announcements'
           return (
             <Link
               key={href}
               href={href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 active
-                  ? 'bg-green-700 text-white font-medium'
-                  : 'text-green-200 hover:bg-green-800 hover:text-white'
+                  ? 'bg-green-600 text-white font-medium'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
               }`}
             >
               <Icon size={18} />
               <span className="flex-1">{label}</span>
-              {active && <ChevronRight size={14} />}
+              {isAnnouncements && unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+              {adminOnly && (
+                <Shield size={12} className="text-yellow-400 opacity-70" />
+              )}
+              {active && !isAnnouncements && <ChevronRight size={14} />}
             </Link>
           )
         })}
-
-        {/* 管理者メニュー */}
-        {isAdmin && (
-          <>
-            <div className="pt-3 pb-1 px-3">
-              <p className="text-green-500 text-xs font-medium uppercase tracking-wider">管理者</p>
-            </div>
-            {ADMIN_ITEMS.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                    active
-                      ? 'bg-green-700 text-white font-medium'
-                      : 'text-green-200 hover:bg-green-800 hover:text-white'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span className="flex-1">{label}</span>
-                </Link>
-              )
-            })}
-          </>
-        )}
       </nav>
 
       {/* フッター */}
-      <div className="p-3 border-t border-green-800 space-y-1">
-        <Link
-          href="/dashboard/profile"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-green-200 hover:bg-green-800 hover:text-white transition-colors"
-        >
-          <User size={18} />
-          <span>プロフィール</span>
-        </Link>
+      <div className="p-3 border-t border-gray-700">
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-green-200 hover:bg-red-800 hover:text-white transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-red-900 hover:text-white transition-colors"
         >
           <LogOut size={18} />
           <span>ログアウト</span>

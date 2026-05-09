@@ -1,139 +1,191 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Calendar, Bell, Image, BookOpen, Users, BarChart3, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import type { Profile, Event, Announcement } from '@/types'
-import { SPORT_LABELS, SPORT_COLORS } from '@/types'
+import { Megaphone, Clock, Users, Calendar, AlertTriangle } from 'lucide-react'
+import type { Profile } from '@/types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [profileRes, eventsRes, announcementsRes] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('events')
-      .select('*')
-      .gte('start_at', new Date().toISOString())
-      .order('start_at', { ascending: true })
-      .limit(5),
-    supabase.from('announcements')
-      .select('*')
-      .order('published_at', { ascending: false })
-      .limit(5),
-  ])
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
 
-  const profile = profileRes.data as Profile | null
-  const events = (eventsRes.data ?? []) as Event[]
-  const announcements = (announcementsRes.data ?? []) as Announcement[]
+  const today = format(new Date(), 'yyyy-MM-dd')
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'staff'
+  // 未読告知
+  const { data: announcements } = await supabase
+    .from('announcements')
+    .select('id, title, is_urgent, published_at')
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .order('published_at', { ascending: false })
+    .limit(5)
 
-  const quickLinks = [
-    { href: '/dashboard/schedule', label: '予定・出欠', icon: Calendar, color: 'bg-blue-500', desc: 'スケジュール確認・出欠登録' },
-    { href: '/dashboard/announcements', label: 'お知らせ', icon: Bell, color: 'bg-orange-500', desc: '最新情報をチェック' },
-    { href: '/dashboard/album', label: '写真アルバム', icon: Image, color: 'bg-purple-500', desc: '活動写真・試合記録' },
-    { href: '/dashboard/diary', label: '活動日記', icon: BookOpen, color: 'bg-green-500', desc: 'ブログ・活動レポート' },
-    ...(isAdmin ? [
-      { href: '/dashboard/members', label: '会員管理', icon: Users, color: 'bg-gray-600', desc: '会員一覧・管理' },
-      { href: '/dashboard/finance', label: '経理・会費', icon: BarChart3, color: 'bg-red-500', desc: '収支・会費管理' },
-    ] : []),
-  ]
+  const { data: myReads } = await supabase
+    .from('announcement_reads')
+    .select('announcement_id')
+    .eq('user_id', user.id)
+
+  const readIds = new Set((myReads ?? []).map((r: { announcement_id: string }) => r.announcement_id))
+  const unreadAnnouncements = (announcements ?? []).filter(a => !readIds.has(a.id))
+
+  // 今日の打刻
+  const { data: todayCard } = await supabase
+    .from('timecards')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('date', today)
+    .single()
+
+  // 直近のイベント
+  const { data: upcomingEvents } = await supabase
+    .from('events')
+    .select('id, title, start_at, location')
+    .gte('start_at', new Date().toISOString())
+    .order('start_at')
+    .limit(3)
+
+  const p = profile as Profile | null
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
       {/* ウェルカム */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
-          こんにちは、{profile?.full_name ?? 'さん'} &#x1F44B;
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-gray-900">
+          おはようございます、{p?.full_name ?? 'スタッフ'}さん
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-0.5">
           {format(new Date(), 'yyyy年M月d日（E）', { locale: ja })}
         </p>
       </div>
 
-      {/* クイックリンク */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {quickLinks.map(({ href, label, icon: Icon, color, desc }) => (
-          <Link key={href} href={href}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardContent className="p-4">
-                <div className={`w-10 h-10 ${color} rounded-lg flex items-center justify-center mb-3`}>
-                  <Icon size={20} className="text-white" />
-                </div>
-                <p className="font-semibold text-sm text-gray-900">{label}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* 直近の予定 */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base font-semibold">直近の予定</CardTitle>
-            <Link href="/dashboard/schedule" className="text-xs text-green-700 flex items-center gap-1 hover:underline">
-              すべて見る <ChevronRight size={12} />
-            </Link>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {events.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">予定はありません</p>
-            ) : events.map(event => (
-              <div key={event.id} className="flex items-start gap-3 py-2 border-b last:border-0">
-                <div className="text-center bg-gray-100 rounded-lg p-2 min-w-[48px]">
-                  <p className="text-xs text-gray-500">{format(new Date(event.start_at), 'M/d', { locale: ja })}</p>
-                  <p className="text-xs font-bold text-gray-700">{format(new Date(event.start_at), 'E', { locale: ja })}</p>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Badge className={`text-xs ${SPORT_COLORS[event.sport]}`}>
-                      {SPORT_LABELS[event.sport].split('（')[0]}
-                    </Badge>
-                    {event.location && (
-                      <span className="text-xs text-gray-400 truncate">{event.location}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* お知らせ */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base font-semibold">お知らせ</CardTitle>
-            <Link href="/dashboard/announcements" className="text-xs text-green-700 flex items-center gap-1 hover:underline">
-              すべて見る <ChevronRight size={12} />
-            </Link>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {announcements.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">お知らせはありません</p>
-            ) : announcements.map(a => (
-              <div key={a.id} className="py-2 border-b last:border-0">
-                <div className="flex items-start gap-2">
-                  {a.is_urgent && (
-                    <Badge variant="destructive" className="text-xs flex-shrink-0">緊急</Badge>
-                  )}
-                  <p className="text-sm font-medium text-gray-900 line-clamp-2">{a.title}</p>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {format(new Date(a.published_at), 'M月d日', { locale: ja })}
+      {/* 未読告知アラート */}
+      {unreadAnnouncements.length > 0 && (
+        <Link href="/dashboard/announcements">
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 mb-4 flex items-start gap-3 hover:bg-amber-100 transition-colors">
+            <AlertTriangle size={22} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-800">
+                未確認の告知が{unreadAnnouncements.length}件あります
+              </p>
+              {unreadAnnouncements[0]?.is_urgent && (
+                <p className="text-sm text-red-600 font-medium mt-1">
+                  🚨 緊急: {unreadAnnouncements[0].title}
                 </p>
+              )}
+              <p className="text-xs text-amber-600 mt-1">タップして確認する →</p>
+            </div>
+          </div>
+        </Link>
+      )}
+
+      {/* 今日の打刻ステータス */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              todayCard?.clock_in && todayCard?.clock_out
+                ? 'bg-blue-100'
+                : todayCard?.clock_in
+                ? 'bg-green-100'
+                : 'bg-gray-100'
+            }`}>
+              <Clock size={20} className={
+                todayCard?.clock_in && todayCard?.clock_out
+                  ? 'text-blue-500'
+                  : todayCard?.clock_in
+                  ? 'text-green-500'
+                  : 'text-gray-400'
+              } />
+            </div>
+            <div>
+              <p className="font-medium text-gray-800">本日の勤怠</p>
+              <p className="text-xs text-gray-500">
+                {!todayCard?.clock_in
+                  ? '未打刻'
+                  : !todayCard?.clock_out
+                  ? `出勤中 (${format(new Date(todayCard.clock_in), 'HH:mm')} 〜)`
+                  : `${format(new Date(todayCard.clock_in), 'HH:mm')} 〜 ${format(new Date(todayCard.clock_out), 'HH:mm')}`
+                }
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/attendance"
+            className="text-sm text-green-600 font-medium"
+          >
+            打刻する →
+          </Link>
+        </div>
+      </div>
+
+      {/* クイックアクセス */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <Link href="/dashboard/announcements" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+          <Megaphone size={24} className="text-green-600 mb-2" />
+          <p className="font-semibold text-gray-800">重要告知</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {unreadAnnouncements.length > 0
+              ? <span className="text-amber-600 font-medium">未読 {unreadAnnouncements.length}件</span>
+              : '全て確認済み'}
+          </p>
+        </Link>
+
+        <Link href="/dashboard/attendance" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+          <Clock size={24} className="text-blue-600 mb-2" />
+          <p className="font-semibold text-gray-800">勤怠・日報</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {todayCard?.clock_in ? 'タップして退勤' : '出勤打刻する'}
+          </p>
+        </Link>
+
+        <Link href="/dashboard/members" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+          <Users size={24} className="text-purple-600 mb-2" />
+          <p className="font-semibold text-gray-800">会員管理</p>
+          <p className="text-xs text-gray-500 mt-0.5">メンバー一覧</p>
+        </Link>
+
+        <Link href="/dashboard/schedule" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+          <Calendar size={24} className="text-orange-600 mb-2" />
+          <p className="font-semibold text-gray-800">予定</p>
+          <p className="text-xs text-gray-500 mt-0.5">カレンダー確認</p>
+        </Link>
+      </div>
+
+      {/* 直近のイベント */}
+      {upcomingEvents && upcomingEvents.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <h2 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <Calendar size={16} className="text-orange-500" />
+            直近の予定
+          </h2>
+          <div className="space-y-2">
+            {upcomingEvents.map((event: any) => (
+              <div key={event.id} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                <div className="bg-orange-50 rounded-lg px-2 py-1 text-center min-w-[48px]">
+                  <p className="text-xs text-orange-600 font-bold">{format(new Date(event.start_at), 'M/d')}</p>
+                  <p className="text-xs text-orange-500">{format(new Date(event.start_at), 'HH:mm')}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{event.title}</p>
+                  {event.location && (
+                    <p className="text-xs text-gray-400">{event.location}</p>
+                  )}
+                </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <Link href="/dashboard/schedule" className="text-xs text-green-600 font-medium mt-2 block text-right">
+            全ての予定を見る →
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
