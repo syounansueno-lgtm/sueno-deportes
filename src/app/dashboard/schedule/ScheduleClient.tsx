@@ -25,8 +25,19 @@ const ATTENDANCE_OPTIONS = [
   { value: 'undecided', label: '未定', icon: HelpCircle, color: 'bg-gray-400 hover:bg-gray-500 text-white' },
 ]
 
+type GoogleEvent = {
+  id: string
+  title: string
+  start_at: string
+  end_at: string
+  location: string | null
+  description: string | null
+  source: 'google'
+}
+
 export default function ScheduleClient({ isAdmin }: { isAdmin: boolean }) {
   const [events, setEvents] = useState<Event[]>([])
+  const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([])
   const [attendances, setAttendances] = useState<Record<string, Attendance>>({})
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,7 +60,7 @@ export default function ScheduleClient({ isAdmin }: { isAdmin: boolean }) {
       if (!user) return
       setUserId(user.id)
 
-      const [eventsRes, attendancesRes] = await Promise.all([
+      const [eventsRes, attendancesRes, googleRes] = await Promise.all([
         supabase.from('events')
           .select('*')
           .gte('start_at', new Date().toISOString())
@@ -57,9 +68,11 @@ export default function ScheduleClient({ isAdmin }: { isAdmin: boolean }) {
         supabase.from('attendances')
           .select('*')
           .eq('user_id', user.id),
+        fetch('/api/calendar').then(r => r.json()).catch(() => ({ events: [] })),
       ])
 
       setEvents(eventsRes.data ?? [])
+      setGoogleEvents(googleRes.events ?? [])
 
       const map: Record<string, Attendance> = {}
       for (const a of attendancesRes.data ?? []) {
@@ -234,13 +247,59 @@ export default function ScheduleClient({ isAdmin }: { isAdmin: boolean }) {
         </Card>
       )}
 
-      {events.length === 0 ? (
+      {/* Googleカレンダーのイベント */}
+      {googleEvents.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-medium text-gray-500">📅 Googleカレンダー（公開予定）</span>
+          </div>
+          <div className="space-y-3">
+            {googleEvents.map(event => (
+              <Card key={event.id} className="overflow-hidden border-blue-100">
+                <div className="h-1 bg-blue-500" />
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{event.title}</p>
+                      <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />
+                          {format(new Date(event.start_at), 'M/d（E） HH:mm', { locale: ja })}
+                          {' 〜 '}
+                          {format(new Date(event.end_at), 'HH:mm', { locale: ja })}
+                        </span>
+                        {event.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin size={12} />
+                            {event.location}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <a
+                      href={`https://calendar.google.com/calendar/r`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-500 hover:underline flex-shrink-0"
+                    >
+                      Googleカレンダーで見る
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* アプリ内イベント */}
+      {events.length === 0 && googleEvents.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12 text-gray-400">
             今後の予定はありません
           </CardContent>
         </Card>
-      ) : (
+      ) : events.length === 0 ? null : (
         <div className="space-y-4">
           {events.map(event => {
             const myAttendance = attendances[event.id]
