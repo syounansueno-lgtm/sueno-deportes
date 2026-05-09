@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Megaphone, Clock, Users, ShoppingBag, Library,
   Package, Phone, Calendar, LogOut, ChevronRight,
-  Shield
+  Shield, Home
 } from 'lucide-react'
 import type { Profile } from '@/types'
 
@@ -18,6 +18,7 @@ type NavItem = {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard', label: 'ホーム', icon: Home },
   { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
   { href: '/dashboard/attendance', label: '勤怠・日報', icon: Clock },
   { href: '/dashboard/members', label: '会員管理', icon: Users },

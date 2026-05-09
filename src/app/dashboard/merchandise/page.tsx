@@ -1,17 +1,29 @@
-import { ShoppingBag } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import MerchandiseClient from './MerchandiseClient'
 
-export default function MerchandisePage() {
+export default async function MerchandisePage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin'
+
+  const [itemsRes, myOrdersRes, allOrdersRes] = await Promise.all([
+    supabase.from('merchandise_items').select('*').eq('is_available', true).order('created_at', { ascending: false }),
+    supabase.from('merchandise_orders').select('*, merchandise_items(name, price)').eq('user_id', user.id).order('created_at', { ascending: false }),
+    isAdmin
+      ? supabase.from('merchandise_orders').select('*, merchandise_items(name, price), profiles(full_name)').order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ])
+
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <ShoppingBag size={28} className="text-green-600" />
-        <h1 className="text-2xl font-bold text-gray-900">物販・注文管理</h1>
-      </div>
-      <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-        <ShoppingBag size={48} className="text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500 font-medium">近日実装予定</p>
-        <p className="text-sm text-gray-400 mt-1">ユニフォーム・グッズの注文管理機能</p>
-      </div>
-    </div>
+    <MerchandiseClient
+      items={(itemsRes.data ?? []) as any}
+      myOrders={(myOrdersRes.data ?? []) as any}
+      allOrders={(allOrdersRes.data ?? []) as any}
+      isAdmin={isAdmin}
+      userId={user.id}
+    />
   )
 }
