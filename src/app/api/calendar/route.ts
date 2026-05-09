@@ -8,24 +8,35 @@ export async function GET() {
   try {
     const data = await ical.async.fromURL(ICS_URL)
     const now = new Date()
+    // 今日の0時と比較（日付のみのイベントも含める）
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
     const upcoming = Object.values(data)
-      .filter((e): e is ical.VEvent => !!e && e.type === 'VEVENT' && !!e.start && new Date(e.start) >= now)
-      .map(e => ({
-        id: String(e.uid ?? Math.random()),
-        title: String(e.summary ?? '（タイトルなし）'),
-        start_at: new Date(e.start).toISOString(),
-        end_at: new Date(e.end ?? e.start).toISOString(),
-        location: e.location ? String(e.location) : null,
-        description: e.description ? String(e.description) : null,
-        source: 'google',
-      }))
+      .filter((e): e is ical.VEvent => {
+        if (!e || e.type !== 'VEVENT') return false
+        if (!e.start) return false
+        const start = new Date(e.start)
+        return start >= today
+      })
+      .map(e => {
+        const start = new Date(e.start)
+        const end = e.end ? new Date(e.end) : new Date(start.getTime() + 60 * 60 * 1000)
+        return {
+          id: String(e.uid ?? Math.random()),
+          title: String(e.summary ?? '（タイトルなし）'),
+          start_at: start.toISOString(),
+          end_at: end.toISOString(),
+          location: e.location ? String(e.location) : null,
+          description: e.description ? String(e.description) : null,
+          source: 'google',
+        }
+      })
       .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
       .slice(0, 50)
 
     return NextResponse.json({ events: upcoming })
   } catch (error) {
     console.error('Calendar fetch error:', error)
-    return NextResponse.json({ events: [] })
+    return NextResponse.json({ events: [], error: String(error) })
   }
 }
