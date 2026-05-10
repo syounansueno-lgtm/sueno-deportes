@@ -73,10 +73,13 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
 
       {/* プロフィール */}
       {profile && (
-        <div className="px-4 py-3 border-b border-gray-700 bg-gray-800">
+        <Link href="/dashboard/profile" onClick={() => setMobileOpen(false)} className="block px-4 py-3 border-b border-gray-700 bg-gray-800 hover:bg-gray-750 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
-              {profile.full_name.charAt(0)}
+            <div className="w-9 h-9 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 overflow-hidden">
+              {profile.avatar_url
+                ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                : profile.full_name.charAt(0)
+              }
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">{profile.full_name}</p>
@@ -92,7 +95,7 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
               </div>
             </div>
           </div>
-        </div>
+        </Link>
       )}
 
       {/* ナビゲーション */}
