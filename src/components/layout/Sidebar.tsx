@@ -1,12 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Megaphone, Clock, Users, ShoppingBag, Library,
   Package, Phone, Calendar, LogOut, ChevronRight,
-  Shield, Home
+  Shield, Home, Menu, X
 } from 'lucide-react'
 import type { Profile } from '@/types'
 
@@ -37,6 +38,7 @@ type Props = {
 export default function Sidebar({ profile, unreadCount = 0 }: Props) {
   const pathname = usePathname()
   const router = useRouter()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   async function handleLogout() {
     const supabase = createClient()
@@ -46,8 +48,8 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
 
   const isAdmin = profile?.role === 'admin'
 
-  return (
-    <aside className="w-64 bg-gray-900 text-white flex flex-col min-h-screen">
+  const navContent = (
+    <>
       {/* ヘッダー */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center gap-3">
@@ -58,6 +60,14 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
             <p className="font-bold text-sm">ヴェルディ相模原</p>
             <p className="text-gray-400 text-xs">スタッフ管理システム</p>
           </div>
+          {/* モバイル：閉じるボタン */}
+          <button
+            className="ml-auto md:hidden text-gray-400 hover:text-white"
+            onClick={() => setMobileOpen(false)}
+            aria-label="メニューを閉じる"
+          >
+            <X size={20} />
+          </button>
         </div>
       </div>
 
@@ -88,12 +98,13 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
       {/* ナビゲーション */}
       <nav className="flex-1 p-3 space-y-0.5">
         {NAV_ITEMS.filter(item => !item.adminOnly || isAdmin).map(({ href, label, icon: Icon, adminOnly }) => {
-          const active = pathname.startsWith(href)
+          const active = href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href)
           const isAnnouncements = href === '/dashboard/announcements'
           return (
             <Link
               key={href}
               href={href}
+              onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 active
                   ? 'bg-green-600 text-white font-medium'
@@ -126,6 +137,54 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
           <span>ログアウト</span>
         </button>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* モバイル：トップバー */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-900 text-white h-14 flex items-center px-4 shadow-md">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="text-gray-300 hover:text-white"
+          aria-label="メニューを開く"
+        >
+          <Menu size={22} />
+        </button>
+        <div className="flex items-center gap-2 ml-3">
+          <div className="w-7 h-7 bg-green-500 rounded flex items-center justify-center text-xs font-bold">V</div>
+          <span className="text-sm font-bold">ヴェルディ相模原</span>
+        </div>
+        {unreadCount > 0 && (
+          <Link href="/dashboard/announcements" className="ml-auto">
+            <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          </Link>
+        )}
+      </div>
+
+      {/* モバイル：オーバーレイ */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 z-40"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* モバイル：スライドインサイドバー */}
+      <aside
+        className={`md:hidden fixed top-0 left-0 h-full w-72 bg-gray-900 text-white flex flex-col z-50 transform transition-transform duration-300 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {navContent}
+      </aside>
+
+      {/* デスクトップ：固定サイドバー */}
+      <aside className="hidden md:flex w-64 bg-gray-900 text-white flex-col min-h-screen flex-shrink-0">
+        {navContent}
+      </aside>
+    </>
   )
 }
