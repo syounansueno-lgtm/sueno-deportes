@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, getDay, parseISO } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { MapPin, Clock, FileText, ChevronLeft, ChevronRight, CheckCircle2, Users, Pencil, X, AlertCircle } from 'lucide-react'
+import { MapPin, Clock, FileText, ChevronLeft, ChevronRight, CheckCircle2, Users, Pencil, X, AlertCircle, Trash2 } from 'lucide-react'
 
 type Timecard = {
   id: string
@@ -60,6 +60,10 @@ export default function AttendanceClient({ userId, isAdmin, todayCard: initToday
   const [editSaving, setEditSaving] = useState(false)
   const [editDone, setEditDone] = useState(false)
 
+  // 取り消し確認
+  const [cancelTarget, setCancelTarget] = useState<{ card: Timecard; type: 'in' | 'out' | 'all' } | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+
   const today = format(new Date(), 'yyyy-MM-dd')
 
   useEffect(() => {
@@ -109,6 +113,34 @@ export default function AttendanceClient({ userId, isAdmin, todayCard: initToday
       }, 1200)
     }
     setEditSaving(false)
+  }
+
+  async function cancelPunch() {
+    if (!cancelTarget) return
+    setCancelling(true)
+    const { card, type } = cancelTarget
+
+    const update =
+      type === 'all'
+        ? { clock_in: null, clock_out: null, clock_in_lat: null, clock_in_lng: null, clock_out_lat: null, clock_out_lng: null }
+        : type === 'in'
+        ? { clock_in: null, clock_in_lat: null, clock_in_lng: null }
+        : { clock_out: null, clock_out_lat: null, clock_out_lng: null }
+
+    const { data, error } = await supabase
+      .from('timecards')
+      .update(update)
+      .eq('id', card.id)
+      .select()
+      .single()
+
+    if (!error && data) {
+      if (card.date === today) setTodayCard(data)
+      setMonthCards(prev => prev.map(c => c.id === data.id ? data : c))
+      setAllStaffCards(prev => prev.map(c => c.id === data.id ? data : c))
+    }
+    setCancelTarget(null)
+    setCancelling(false)
   }
 
   async function getGPS(): Promise<{ lat: number; lng: number } | null> {
@@ -233,12 +265,29 @@ export default function AttendanceClient({ userId, isAdmin, todayCard: initToday
               </div>
             )}
 
-            {/* 今日の打刻に間違いがあれば修正 */}
+            {/* 取り消し・修正ボタン */}
             {todayCard && (
-              <button onClick={() => openEdit(todayCard)}
-                className="mt-3 w-full flex items-center justify-center gap-2 text-sm text-amber-600 border border-amber-300 rounded-xl py-2 hover:bg-amber-50 transition-colors">
-                <Pencil size={14} />打刻時刻を修正する
-              </button>
+              <div className="mt-3 space-y-2">
+                <button onClick={() => openEdit(todayCard)}
+                  className="w-full flex items-center justify-center gap-2 text-sm text-amber-600 border border-amber-300 rounded-xl py-2 hover:bg-amber-50 transition-colors">
+                  <Pencil size={14} />打刻時刻を修正する
+                </button>
+                <div className="flex gap-2">
+                  {todayCard.clock_in && (
+                    <button onClick={() => setCancelTarget({ card: todayCard, type: todayCard.clock_out ? 'out' : 'in' })}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs text-red-500 border border-red-200 rounded-xl py-2 hover:bg-red-50 transition-colors">
+                      <Trash2 size={12} />
+                      {todayCard.clock_out ? '退勤を取り消す' : '出勤を取り消す'}
+                    </button>
+                  )}
+                  {todayCard.clock_in && (
+                    <button onClick={() => setCancelTarget({ card: todayCard, type: 'all' })}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs text-red-600 border border-red-300 rounded-xl py-2 hover:bg-red-50 transition-colors font-medium">
+                      <Trash2 size={12} />全て取り消す
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -328,10 +377,16 @@ export default function AttendanceClient({ userId, isAdmin, todayCard: initToday
                         <p className="text-xs text-amber-600 mt-0.5">📝 {card.note}</p>
                       )}
                     </div>
-                    <button onClick={() => openEdit(card)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 hover:bg-amber-50 hover:border-amber-300 transition-colors">
-                      <Pencil size={14} className="text-gray-400" />
-                    </button>
+                    <div className="flex gap-1">
+                      <button onClick={() => openEdit(card)}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 hover:bg-amber-50 hover:border-amber-300 transition-colors">
+                        <Pencil size={14} className="text-gray-400" />
+                      </button>
+                      <button onClick={() => setCancelTarget({ card, type: 'all' })}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 hover:bg-red-50 hover:border-red-300 transition-colors">
+                        <Trash2 size={14} className="text-gray-400" />
+                      </button>
+                    </div>
                   </div>
                 )
               }).filter(Boolean)}
@@ -372,10 +427,16 @@ export default function AttendanceClient({ userId, isAdmin, todayCard: initToday
                         <span className="bg-gray-100 text-gray-400 text-sm px-3 py-1 rounded-full">未打刻</span>
                       )}
                     </div>
-                    <button onClick={() => openEdit(card)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 hover:bg-amber-50 hover:border-amber-300">
-                      <Pencil size={14} className="text-gray-400" />
-                    </button>
+                    <div className="flex gap-1">
+                      <button onClick={() => openEdit(card)}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 hover:bg-amber-50 hover:border-amber-300">
+                        <Pencil size={14} className="text-gray-400" />
+                      </button>
+                      <button onClick={() => setCancelTarget({ card, type: 'all' })}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 hover:bg-red-50 hover:border-red-300">
+                        <Trash2 size={14} className="text-gray-400" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -430,6 +491,47 @@ export default function AttendanceClient({ userId, isAdmin, todayCard: initToday
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 取り消し確認モーダル */}
+      {cancelTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={() => !cancelling && setCancelTarget(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Trash2 size={28} className="text-red-500" />
+              </div>
+              <h3 className="font-bold text-gray-900 text-lg">打刻を取り消しますか？</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {format(parseISO(cancelTarget.card.date), 'M月d日（E）', { locale: ja })} の
+                {cancelTarget.type === 'in' ? '出勤打刻' :
+                 cancelTarget.type === 'out' ? '退勤打刻' : '全ての打刻'}
+                を削除します
+              </p>
+              {cancelTarget.card.clock_in && cancelTarget.type !== 'out' && (
+                <p className="text-sm text-green-600 mt-2 font-medium">
+                  出勤 {format(new Date(cancelTarget.card.clock_in), 'HH:mm')}
+                </p>
+              )}
+              {cancelTarget.card.clock_out && cancelTarget.type !== 'in' && (
+                <p className="text-sm text-blue-600 font-medium">
+                  退勤 {format(new Date(cancelTarget.card.clock_out), 'HH:mm')}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setCancelTarget(null)}
+                className="flex-1 py-3 border border-gray-300 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
+                キャンセル
+              </button>
+              <button onClick={cancelPunch} disabled={cancelling}
+                className="flex-1 py-3 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 disabled:opacity-50">
+                {cancelling ? '取り消し中...' : '取り消す'}
+              </button>
+            </div>
           </div>
         </div>
       )}
