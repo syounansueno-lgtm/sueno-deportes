@@ -83,6 +83,17 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
       setLocalAnnouncements(prev => [data as AnnouncementWithReads, ...prev])
       setForm({ title: '', body: '', is_urgent: false, expires_at: '' })
       setShowForm(false)
+
+      // LINEグループに通知（設定済みの場合のみ）
+      fetch('/api/line/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: data.title,
+          body: data.body,
+          is_urgent: data.is_urgent,
+        }),
+      }).catch(() => {/* LINE未設定時は無視 */})
     }
     setSubmitting(false)
   }
