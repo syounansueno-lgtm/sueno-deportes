@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Search, Shield, Users, Phone, Mail, Calendar, Download, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { format } from 'date-fns'
@@ -24,7 +24,6 @@ type MemberSlim = {
 }
 
 type Props = {
-  members: MemberSlim[]
   isAdmin: boolean
 }
 
@@ -56,14 +55,28 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
 }
 
-export default function MembersClient({ members: initialMembers, isAdmin }: Props) {
+export default function MembersClient({ isAdmin }: Props) {
   const supabase = createClient()
-  const [members, setMembers] = useState(initialMembers)
+  const [dataLoaded, setDataLoaded] = useState(false)
+  const [members, setMembers] = useState<MemberSlim[]>([])
   const [query, setQuery] = useState('')
   const [filterSport, setFilterSport] = useState('all')
   const [filterRole, setFilterRole] = useState('all')
   const [selected, setSelected] = useState<MemberSlim | null>(null)
   const [approving, setApproving] = useState<string | null>(null)
+
+  // ページ表示後にデータ取得
+  useEffect(() => {
+    async function fetchData() {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, role, sports, jersey_number, position, birth_date, membership_status, avatar_url, created_at')
+        .order('full_name')
+      setMembers((data ?? []) as MemberSlim[])
+      setDataLoaded(true)
+    }
+    fetchData()
+  }, [])
 
   // 承認・却下
   async function updateMemberStatus(memberId: string, status: 'active' | 'inactive') {
@@ -108,6 +121,29 @@ export default function MembersClient({ members: initialMembers, isAdmin }: Prop
     a.download = `会員名簿_${format(new Date(), 'yyyyMMdd')}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  if (!dataLoaded) {
+    return (
+      <div className="p-4 md:p-6 max-w-4xl mx-auto animate-pulse">
+        <div className="flex items-center justify-between mb-6">
+          <div className="h-8 bg-gray-200 rounded-lg w-36" />
+          <div className="h-9 bg-gray-200 rounded-lg w-28" />
+        </div>
+        <div className="h-10 bg-gray-200 rounded-lg mb-4" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-gray-200 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
+                <div className="h-3 bg-gray-200 rounded w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const pendingMembers = members.filter(m => m.membership_status === 'pending')

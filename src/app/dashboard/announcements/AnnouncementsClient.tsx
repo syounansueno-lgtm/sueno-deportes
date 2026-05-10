@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -20,30 +20,47 @@ type StaffProfile = {
 }
 
 type Props = {
-  announcements: AnnouncementWithReads[]
-  readIds: string[]
   isAdmin: boolean
   userId: string
-  staffList: StaffProfile[]
 }
 
-export default function AnnouncementsClient({ announcements, readIds: initialReadIds, isAdmin, userId, staffList }: Props) {
-  const [readIds, setReadIds] = useState(new Set(initialReadIds))
+export default function AnnouncementsClient({ isAdmin, userId }: Props) {
+  const supabase = createClient()
+  const [dataLoaded, setDataLoaded] = useState(false)
+  const [readIds, setReadIds] = useState(new Set<string>())
+  const [staffList, setStaffList] = useState<StaffProfile[]>([])
+  const [localAnnouncements, setLocalAnnouncements] = useState<AnnouncementWithReads[]>([])
+
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showReaders, setShowReaders] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const supabase = createClient()
-
-  // フォーム状態
-  const [form, setForm] = useState({
-    title: '',
-    body: '',
-    is_urgent: false,
-    expires_at: '',
-  })
+  const [form, setForm] = useState({ title: '', body: '', is_urgent: false, expires_at: '' })
   const [submitting, setSubmitting] = useState(false)
-  const [localAnnouncements, setLocalAnnouncements] = useState(announcements)
+
+  // ページ表示後にデータ取得
+  useEffect(() => {
+    async function fetchData() {
+      const [
+        { data: announcements },
+        { data: myReads },
+        { data: staff },
+      ] = await Promise.all([
+        supabase.from('announcements').select(`
+          *,
+          announcement_reads(user_id, profiles(full_name)),
+          author:profiles!announcements_author_id_fkey(full_name)
+        `).order('published_at', { ascending: false }),
+        supabase.from('announcement_reads').select('announcement_id').eq('user_id', userId),
+        supabase.from('profiles').select('id, full_name, role').in('role', ['admin', 'staff']).order('full_name'),
+      ])
+
+      setLocalAnnouncements((announcements ?? []) as AnnouncementWithReads[])
+      setReadIds(new Set((myReads ?? []).map((r: { announcement_id: string }) => r.announcement_id)))
+      setStaffList((staff ?? []) as StaffProfile[])
+      setDataLoaded(true)
+    }
+    fetchData()
+  }, [userId])
 
   async function handleDelete(announcementId: string) {
     if (!window.confirm('この告知を削除しますか？')) return
@@ -84,26 +101,43 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
       setForm({ title: '', body: '', is_urgent: false, expires_at: '' })
       setShowForm(false)
 
-      // LINEグループに通知（設定済みの場合のみ）
       fetch('/api/line/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: data.title,
-          body: data.body,
-          is_urgent: data.is_urgent,
-        }),
-      }).catch(() => {/* LINE未設定時は無視 */})
+        body: JSON.stringify({ title: data.title, body: data.body, is_urgent: data.is_urgent }),
+      }).catch(() => {})
     }
     setSubmitting(false)
   }
 
-  const active = localAnnouncements.filter(a =>
-    !a.expires_at || new Date(a.expires_at) > new Date()
-  )
-  const expired = localAnnouncements.filter(a =>
-    a.expires_at && new Date(a.expires_at) <= new Date()
-  )
+  const active = localAnnouncements.filter(a => !a.expires_at || new Date(a.expires_at) > new Date())
+  const expired = localAnnouncements.filter(a => a.expires_at && new Date(a.expires_at) <= new Date())
+
+  if (!dataLoaded) {
+    return (
+      <div className="p-4 md:p-6 max-w-3xl mx-auto animate-pulse">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="h-8 bg-gray-200 rounded-lg w-36 mb-2" />
+            <div className="h-4 bg-gray-200 rounded w-52" />
+          </div>
+        </div>
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border-2 border-gray-200 p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-gray-200 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-gray-200 rounded w-1/3" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -124,7 +158,7 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
         )}
       </div>
 
-      {/* 新規投稿フォーム（管理者のみ） */}
+      {/* 新規投稿フォーム */}
       {showForm && isAdmin && (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border-2 border-green-500 p-5 mb-6 shadow-sm">
           <h2 className="font-bold text-gray-900 mb-4">告知を作成</h2>
@@ -132,9 +166,7 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">タイトル</label>
               <input
-                type="text"
-                required
-                value={form.title}
+                type="text" required value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="例：今週の練習について"
@@ -143,9 +175,7 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">内容</label>
               <textarea
-                required
-                rows={4}
-                value={form.body}
+                required rows={4} value={form.body}
                 onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="告知の詳細を入力..."
@@ -155,8 +185,7 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
               <div className="flex-1">
                 <label className="text-sm font-medium text-gray-700 block mb-1">掲載期限（任意）</label>
                 <input
-                  type="datetime-local"
-                  value={form.expires_at}
+                  type="datetime-local" value={form.expires_at}
                   onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
@@ -164,8 +193,7 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
               <div className="flex items-end pb-2">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
-                    type="checkbox"
-                    checked={form.is_urgent}
+                    type="checkbox" checked={form.is_urgent}
                     onChange={e => setForm(f => ({ ...f, is_urgent: e.target.checked }))}
                     className="w-4 h-4 accent-red-500"
                   />
@@ -174,8 +202,7 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
               </div>
             </div>
             <button
-              type="submit"
-              disabled={submitting}
+              type="submit" disabled={submitting}
               className="w-full bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
             >
               {submitting ? '投稿中...' : '投稿する'}
@@ -216,17 +243,13 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
               <div
                 key={a.id}
                 className={`bg-white rounded-xl border-2 transition-all ${
-                  a.is_urgent
-                    ? 'border-red-400 shadow-md'
-                    : isRead
-                    ? 'border-gray-200'
-                    : 'border-amber-400 shadow-sm'
+                  a.is_urgent ? 'border-red-400 shadow-md'
+                  : isRead ? 'border-gray-200'
+                  : 'border-amber-400 shadow-sm'
                 }`}
               >
-                {/* カードヘッダー */}
                 <div className="p-4">
                   <div className="flex items-start gap-3">
-                    {/* 既読/未読インジケーター */}
                     <div className="flex-shrink-0 mt-0.5">
                       {isRead ? (
                         <CheckCircle2 size={20} className="text-green-500" />
@@ -234,19 +257,15 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
                         <div className="w-5 h-5 rounded-full bg-amber-400 border-2 border-amber-500" />
                       )}
                     </div>
-
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         {a.is_urgent && (
                           <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                            <AlertTriangle size={10} />
-                            緊急
+                            <AlertTriangle size={10} />緊急
                           </span>
                         )}
                         {!isRead && (
-                          <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded">
-                            未読
-                          </span>
+                          <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded">未読</span>
                         )}
                       </div>
                       <h3 className={`font-bold text-base leading-snug ${a.is_urgent ? 'text-red-800' : 'text-gray-900'}`}>
@@ -256,67 +275,46 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
                         <p className="text-xs text-gray-400">
                           {format(new Date(a.published_at), 'M月d日(E) HH:mm', { locale: ja })}
                         </p>
-                        {a.author && (
-                          <p className="text-xs text-gray-400">by {a.author.full_name}</p>
-                        )}
+                        {a.author && <p className="text-xs text-gray-400">by {a.author.full_name}</p>}
                         {a.expires_at && (
-                          <p className="text-xs text-gray-400">
-                            期限: {format(new Date(a.expires_at), 'M/d HH:mm')}
-                          </p>
+                          <p className="text-xs text-gray-400">期限: {format(new Date(a.expires_at), 'M/d HH:mm')}</p>
                         )}
                       </div>
                     </div>
-
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {isAdmin && (
-                        <button
-                          onClick={() => handleDelete(a.id)}
-                          className="text-gray-300 hover:text-red-500 p-1 rounded transition-colors"
-                          title="削除"
-                        >
+                        <button onClick={() => handleDelete(a.id)}
+                          className="text-gray-300 hover:text-red-500 p-1 rounded transition-colors" title="削除">
                           <Trash2 size={15} />
                         </button>
                       )}
-                      <button
-                        onClick={() => setExpanded(isExpanded ? null : a.id)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
+                      <button onClick={() => setExpanded(isExpanded ? null : a.id)} className="text-gray-400 hover:text-gray-600">
                         {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                       </button>
                     </div>
                   </div>
 
-                  {/* 本文（展開時） */}
                   {isExpanded && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                        {a.body}
-                      </p>
-
-                      {/* 既読ボタン */}
-                      {!isRead && (
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{a.body}</p>
+                      {!isRead ? (
                         <button
                           onClick={() => markAsRead(a.id)}
                           className={`mt-4 w-full py-3 rounded-xl font-bold text-base transition-colors ${
-                            a.is_urgent
-                              ? 'bg-red-500 hover:bg-red-600 text-white'
-                              : 'bg-green-500 hover:bg-green-600 text-white'
+                            a.is_urgent ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
                           }`}
                         >
                           ✓ 確認しました
                         </button>
-                      )}
-                      {isRead && (
+                      ) : (
                         <div className="mt-4 flex items-center justify-center gap-2 text-green-600 text-sm font-medium bg-green-50 rounded-xl py-2.5">
-                          <CheckCircle2 size={16} />
-                          確認済み
+                          <CheckCircle2 size={16} />確認済み
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* 管理者：既読状況 */}
                 {isAdmin && (
                   <div className="border-t border-gray-100 px-4 py-2">
                     <button
@@ -327,22 +325,17 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
                       <span>既読 {readerCount}人 / 未読 {unreadStaff.length}人</span>
                       {showingReaders ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                     </button>
-
                     {showingReaders && (
                       <div className="mt-2 grid grid-cols-2 gap-1.5 pb-2">
                         {staffList.map(staff => {
                           const hasRead = a.announcement_reads?.some(r => r.user_id === staff.id)
                           return (
-                            <div
-                              key={staff.id}
+                            <div key={staff.id}
                               className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${
                                 hasRead ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
                               }`}
                             >
-                              {hasRead
-                                ? <CheckCircle2 size={12} />
-                                : <div className="w-3 h-3 rounded-full bg-red-400" />
-                              }
+                              {hasRead ? <CheckCircle2 size={12} /> : <div className="w-3 h-3 rounded-full bg-red-400" />}
                               <span className="truncate">{staff.full_name}</span>
                             </div>
                           )

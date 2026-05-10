@@ -6,21 +6,12 @@ export default async function MembersPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // プロフィール（権限確認）と全会員を並列取得
-  // 管理者かどうかに関係なく全フィールドを取得し、RLSでアクセス制御
-  const [{ data: profile }, { data: members }] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user.id).single(),
-    supabase.from('profiles')
-      .select('id, full_name, email, phone, role, sports, jersey_number, position, birth_date, membership_status, avatar_url, created_at')
-      .order('full_name'),
-  ])
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
 
-  const isAdmin = profile?.role === 'admin'
-
-  return (
-    <MembersClient
-      members={(members ?? []) as any}
-      isAdmin={isAdmin}
-    />
-  )
+  // データはクライアント側で取得するため、isAdmin のみ渡す
+  return <MembersClient isAdmin={profile?.role === 'admin'} />
 }
