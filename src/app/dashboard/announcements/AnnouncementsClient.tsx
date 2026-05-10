@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Users, Plus, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Users, Plus, X, Trash2 } from 'lucide-react'
 import type { Announcement } from '@/types'
 
 type AnnouncementWithReads = Announcement & {
@@ -44,6 +44,14 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
   })
   const [submitting, setSubmitting] = useState(false)
   const [localAnnouncements, setLocalAnnouncements] = useState(announcements)
+
+  async function handleDelete(announcementId: string) {
+    if (!window.confirm('この告知を削除しますか？')) return
+    const { error } = await supabase.from('announcements').delete().eq('id', announcementId)
+    if (!error) {
+      setLocalAnnouncements(prev => prev.filter(a => a.id !== announcementId))
+    }
+  }
 
   async function markAsRead(announcementId: string) {
     if (readIds.has(announcementId)) return
@@ -248,12 +256,23 @@ export default function AnnouncementsClient({ announcements, readIds: initialRea
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setExpanded(isExpanded ? null : a.id)}
-                      className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                    >
-                      {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                    </button>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDelete(a.id)}
+                          className="text-gray-300 hover:text-red-500 p-1 rounded transition-colors"
+                          title="削除"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setExpanded(isExpanded ? null : a.id)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* 本文（展開時） */}

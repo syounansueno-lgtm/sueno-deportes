@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Megaphone, Clock, Users, ShoppingBag, Library,
   Package, Phone, Calendar, LogOut, ChevronRight,
-  Shield, Home, Menu, X
+  Shield, Home, Menu, X, Image, BookOpen, Trophy, Banknote
 } from 'lucide-react'
 import type { Profile } from '@/types'
 
@@ -16,6 +16,7 @@ type NavItem = {
   label: string
   icon: React.ComponentType<{ size?: number }>
   adminOnly?: boolean
+  staffOrAdminOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -24,9 +25,13 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/attendance', label: '勤怠・日報', icon: Clock },
   { href: '/dashboard/members', label: '会員管理', icon: Users },
   { href: '/dashboard/schedule', label: '予定・カレンダー', icon: Calendar },
+  { href: '/dashboard/matches', label: '試合結果', icon: Trophy },
   { href: '/dashboard/merchandise', label: '物販・注文', icon: ShoppingBag },
   { href: '/dashboard/library', label: '共有ライブラリ', icon: Library },
   { href: '/dashboard/equipment', label: '忘れ物・備品', icon: Package },
+  { href: '/dashboard/album', label: '写真アルバム', icon: Image },
+  { href: '/dashboard/diary', label: '活動日記', icon: BookOpen },
+  { href: '/dashboard/finance', label: '経理・会費', icon: Banknote, staffOrAdminOnly: true },
   { href: '/dashboard/emergency', label: '緊急連絡', icon: Phone, adminOnly: true },
 ]
 
@@ -47,6 +52,7 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
   }
 
   const isAdmin = profile?.role === 'admin'
+  const isStaff = profile?.role === 'staff'
 
   const navContent = (
     <>
@@ -100,7 +106,7 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
 
       {/* ナビゲーション */}
       <nav className="flex-1 p-3 space-y-0.5">
-        {NAV_ITEMS.filter(item => !item.adminOnly || isAdmin).map(({ href, label, icon: Icon, adminOnly }) => {
+        {NAV_ITEMS.filter(item => (!item.adminOnly || isAdmin) && (!item.staffOrAdminOnly || isAdmin || isStaff)).map(({ href, label, icon: Icon, adminOnly }) => {
           const active = href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href)
           const isAnnouncements = href === '/dashboard/announcements'
           return (

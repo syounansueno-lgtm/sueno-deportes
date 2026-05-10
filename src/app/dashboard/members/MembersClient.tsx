@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Shield, Users, Phone, Mail, Calendar } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { Search, Shield, Users, Phone, Mail, Calendar, Download, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import type { Profile, Sport } from '@/types'
+import type { Sport } from '@/types'
 
 type MemberSlim = {
   id: string
@@ -55,13 +56,67 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
 }
 
-export default function MembersClient({ members, isAdmin }: Props) {
+export default function MembersClient({ members: initialMembers, isAdmin }: Props) {
+  const supabase = createClient()
+  const [members, setMembers] = useState(initialMembers)
   const [query, setQuery] = useState('')
   const [filterSport, setFilterSport] = useState('all')
   const [filterRole, setFilterRole] = useState('all')
   const [selected, setSelected] = useState<MemberSlim | null>(null)
+  const [approving, setApproving] = useState<string | null>(null)
+
+  // 承認・却下
+  async function updateMemberStatus(memberId: string, status: 'active' | 'inactive') {
+    setApproving(memberId)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ membership_status: status })
+      .eq('id', memberId)
+    if (!error) {
+      setMembers(prev =>
+        prev.map(m => m.id === memberId ? { ...m, membership_status: status } : m)
+      )
+      if (selected?.id === memberId) {
+        setSelected(prev => prev ? { ...prev, membership_status: status } : null)
+      }
+    }
+    setApproving(null)
+  }
+
+  // CSV出力
+  function downloadCSV() {
+    const headers = ['氏名', 'メール', '電話', 'ロール', 'ステータス', 'スポーツ', '背番号', 'ポジション', '生年月日', '登録日']
+    const rows = members.map(m => [
+      m.full_name,
+      m.email ?? '',
+      m.phone ?? '',
+      ROLE_LABELS[m.role] ?? m.role,
+      m.membership_status === 'active' ? '有効' : m.membership_status === 'pending' ? '審査中' : '無効',
+      (m.sports ?? []).map(s => SPORT_LABELS[s] ?? s).join('/'),
+      m.jersey_number ?? '',
+      m.position ?? '',
+      m.birth_date ? format(new Date(m.birth_date), 'yyyy/MM/dd') : '',
+      m.created_at ? format(new Date(m.created_at), 'yyyy/MM/dd') : '',
+    ])
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `会員名簿_${format(new Date(), 'yyyyMMdd')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const pendingMembers = members.filter(m => m.membership_status === 'pending')
 
   const filtered = members.filter(m => {
+    // 承認待ちは別セクションで表示するためメインリストから除外（フィルターなし時）
+    if (isAdmin && m.membership_status === 'pending' && filterRole === 'all' && !query && filterSport === 'all') {
+      return false
+    }
     const matchQuery = !query || m.full_name.includes(query) || (m.email ?? '').includes(query)
     const matchSport = filterSport === 'all' || m.sports?.includes(filterSport as Sport)
     const matchRole = filterRole === 'all' || m.role === filterRole
@@ -81,11 +136,68 @@ export default function MembersClient({ members, isAdmin }: Props) {
             {!isAdmin && ' (スタッフ権限：氏名・写真のみ表示)'}
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-gray-100 text-gray-600 text-xs px-3 py-1.5 rounded-full">
-          {isAdmin ? <Shield size={12} className="text-yellow-500" /> : <Users size={12} />}
-          {isAdmin ? '管理者モード' : 'スタッフモード'}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={downloadCSV}
+              className="flex items-center gap-1.5 text-sm text-green-700 border border-green-300 px-3 py-1.5 rounded-lg hover:bg-green-50 transition-colors font-medium"
+            >
+              <Download size={14} />
+              CSV出力
+            </button>
+          )}
+          <div className="flex items-center gap-2 bg-gray-100 text-gray-600 text-xs px-3 py-1.5 rounded-full">
+            {isAdmin ? <Shield size={12} className="text-yellow-500" /> : <Users size={12} />}
+            {isAdmin ? '管理者モード' : 'スタッフモード'}
+          </div>
         </div>
       </div>
+
+      {/* 承認待ち会員（管理者のみ） */}
+      {isAdmin && pendingMembers.length > 0 && (
+        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={16} className="text-yellow-600" />
+            <h2 className="font-bold text-yellow-800">承認待ちの会員 ({pendingMembers.length}名)</h2>
+          </div>
+          <div className="space-y-2">
+            {pendingMembers.map(m => (
+              <div key={m.id} className="bg-white rounded-xl border border-yellow-200 p-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 bg-yellow-100 rounded-full flex items-center justify-center text-sm font-bold text-yellow-700 flex-shrink-0 overflow-hidden">
+                    {m.avatar_url
+                      ? <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
+                      : m.full_name.charAt(0)
+                    }
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 text-sm">{m.full_name}</p>
+                    {m.email && <p className="text-xs text-gray-400 truncate">{m.email}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => updateMemberStatus(m.id, 'active')}
+                    disabled={approving === m.id}
+                    className="flex items-center gap-1 bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    <CheckCircle2 size={12} />
+                    承認
+                  </button>
+                  <button
+                    onClick={() => updateMemberStatus(m.id, 'inactive')}
+                    disabled={approving === m.id}
+                    className="flex items-center gap-1 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors"
+                  >
+                    <XCircle size={12} />
+                    却下
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 検索・フィルター */}
       <div className="flex flex-col sm:flex-row gap-2 mb-5">
@@ -153,7 +265,7 @@ export default function MembersClient({ members, isAdmin }: Props) {
         </div>
       )}
 
-      {filtered.length === 0 && (
+      {filtered.length === 0 && pendingMembers.length === 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
           該当する会員が見つかりません
         </div>
@@ -261,6 +373,49 @@ export default function MembersClient({ members, isAdmin }: Props) {
                     <p className="text-xs text-gray-400">
                       登録日: {format(new Date(selected.created_at), 'yyyy/M/d')}
                     </p>
+                  )}
+
+                  {/* 承認・却下ボタン（審査中の場合） */}
+                  {selected.membership_status === 'pending' && (
+                    <div className="pt-2">
+                      <p className="text-xs font-semibold text-yellow-700 mb-2">会員申請を承認しますか？</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateMemberStatus(selected.id, 'active')}
+                          disabled={approving === selected.id}
+                          className="flex-1 flex items-center justify-center gap-1 bg-green-600 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-green-700 disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={14} /> 承認する
+                        </button>
+                        <button
+                          onClick={() => updateMemberStatus(selected.id, 'inactive')}
+                          disabled={approving === selected.id}
+                          className="flex-1 flex items-center justify-center gap-1 bg-red-500 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-red-600 disabled:opacity-50"
+                        >
+                          <XCircle size={14} /> 却下する
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 有効 → 無効 切り替え */}
+                  {selected.membership_status === 'active' && (
+                    <button
+                      onClick={() => updateMemberStatus(selected.id, 'inactive')}
+                      disabled={approving === selected.id}
+                      className="w-full text-xs text-gray-400 hover:text-red-500 py-1 border border-dashed border-gray-200 rounded-lg transition-colors"
+                    >
+                      会員を無効化する
+                    </button>
+                  )}
+                  {selected.membership_status === 'inactive' && (
+                    <button
+                      onClick={() => updateMemberStatus(selected.id, 'active')}
+                      disabled={approving === selected.id}
+                      className="w-full text-xs text-gray-400 hover:text-green-600 py-1 border border-dashed border-gray-200 rounded-lg transition-colors"
+                    >
+                      会員を有効化する
+                    </button>
                   )}
                 </div>
               )}
