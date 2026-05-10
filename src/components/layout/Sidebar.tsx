@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -37,10 +37,12 @@ const NAV_ITEMS: NavItem[] = [
 
 type Props = {
   profile: Profile | null
+  unreadBadge?: React.ReactNode
+  /** @deprecated use unreadBadge */
   unreadCount?: number
 }
 
-export default function Sidebar({ profile, unreadCount = 0 }: Props) {
+export default function Sidebar({ profile, unreadBadge, unreadCount = 0 }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -122,10 +124,14 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
             >
               <Icon size={18} />
               <span className="flex-1">{label}</span>
-              {isAnnouncements && unreadCount > 0 && (
-                <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+              {isAnnouncements && (
+                <Suspense fallback={null}>
+                  {unreadBadge ?? (unreadCount > 0 && (
+                    <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  ))}
+                </Suspense>
               )}
               {adminOnly && (
                 <Shield size={12} className="text-yellow-400 opacity-70" />
@@ -164,13 +170,17 @@ export default function Sidebar({ profile, unreadCount = 0 }: Props) {
           <div className="w-7 h-7 bg-green-500 rounded flex items-center justify-center text-xs font-bold">V</div>
           <span className="text-sm font-bold">ヴェルディ相模原</span>
         </div>
-        {unreadCount > 0 && (
-          <Link href="/dashboard/announcements" className="ml-auto">
-            <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          </Link>
-        )}
+        <span className="ml-auto">
+          <Suspense fallback={null}>
+            {unreadBadge ?? (unreadCount > 0 && (
+              <Link href="/dashboard/announcements">
+                <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              </Link>
+            ))}
+          </Suspense>
+        </span>
       </div>
 
       {/* モバイル：オーバーレイ */}

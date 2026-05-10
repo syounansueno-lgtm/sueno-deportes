@@ -1,17 +1,19 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
+import UnreadBadge from '@/components/layout/UnreadBadge'
 import type { Profile } from '@/types'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
+  // 認証チェックとプロフィール取得を並列実行
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*')
+    .select('id, full_name, role, avatar_url')
     .eq('id', user.id)
     .single()
 
@@ -21,26 +23,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect('/login')
   }
 
-  // 未読お知らせ数
-  const { data: announcements } = await supabase
-    .from('announcements')
-    .select('id')
-    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-
-  let unreadCount = 0
-  if (announcements && announcements.length > 0) {
-    const { data: reads } = await supabase
-      .from('announcement_reads')
-      .select('announcement_id')
-      .eq('user_id', user.id)
-
-    const readIds = new Set((reads ?? []).map((r: { announcement_id: string }) => r.announcement_id))
-    unreadCount = announcements.filter(a => !readIds.has(a.id)).length
-  }
+  // 未読バッジはSuspenseで非ブロッキング表示（UnreadBadgeコンポーネントが担当）
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      <Sidebar profile={profile as Profile | null} unreadCount={unreadCount} />
+      <Sidebar profile={profile as Profile | null} unreadBadge={<UnreadBadge userId={user.id} />} />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">
         {children}
       </main>
