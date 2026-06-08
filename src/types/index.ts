@@ -142,6 +142,27 @@ export type PlayerPhysicalCheck = {
   updated_at: string
 }
 
+export type TrainingMenu = {
+  id: string
+  title: string
+  category: string | null
+  content: string
+  duration_minutes: number | null
+  notes: string | null
+  created_by: string
+  created_at: string
+}
+
+export type MatchPlayerEvaluation = {
+  id: string
+  match_id: string
+  player_id: string
+  rating: number | null
+  comment: string | null
+  created_by: string
+  created_at: string
+}
+
 export type TrainerComment = {
   id: string
   content: string

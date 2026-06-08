@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { Trophy, Plus, X, Trash2, MapPin, FileText, Image } from 'lucide-react'
+import { Trophy, Plus, X, Trash2, MapPin, FileText, Image, Star } from 'lucide-react'
+import Link from 'next/link'
 import type { Sport } from '@/types'
 import { SPORT_LABELS, SPORT_COLORS } from '@/types'
 
@@ -364,16 +365,26 @@ export default function MatchesPage() {
                     </div>
                   </div>
 
-                  {/* 管理者：削除 */}
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleDelete(match.id)}
-                      className="text-gray-300 hover:text-red-500 p-1 rounded transition-colors flex-shrink-0"
-                      title="削除"
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* 評価ページへ */}
+                    <Link
+                      href={`/dashboard/matches/${match.id}`}
+                      className="text-green-600 hover:text-green-700 p-1.5 rounded-lg hover:bg-green-50 transition-colors"
+                      title="選手評価"
                     >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
+                      <Star size={16} />
+                    </Link>
+                    {/* 管理者：削除 */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDelete(match.id)}
+                        className="text-gray-300 hover:text-red-500 p-1.5 rounded-lg transition-colors"
+                        title="削除"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )
