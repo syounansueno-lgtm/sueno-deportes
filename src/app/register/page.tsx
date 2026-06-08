@@ -6,8 +6,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 
-// クラブのメンバーコード（オーナーが会員に伝える合言葉）
-const MEMBER_CODE = 'v1999'
+const MEMBER_CODE = 'v1999'       // 会員用合言葉
+const STAFF_CODE  = 'v1999sagami' // スタッフ用合言葉
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -21,8 +21,11 @@ export default function RegisterPage() {
     e.preventDefault()
     setError('')
 
-    // 合言葉チェック
-    if (form.code.trim().toLowerCase() !== MEMBER_CODE) {
+    const codeInput = form.code.trim().toLowerCase()
+    const isStaff  = codeInput === STAFF_CODE
+    const isMember = codeInput === MEMBER_CODE
+
+    if (!isStaff && !isMember) {
       setError('合言葉が違います。スタッフに確認してください。')
       return
     }
@@ -52,6 +55,10 @@ export default function RegisterPage() {
 
     // 即時ログイン成功
     if (data.user && data.session) {
+      // スタッフコードの場合はroleをstaffに更新
+      if (isStaff) {
+        await supabase.from('profiles').update({ role: 'staff' }).eq('id', data.user.id)
+      }
       router.push('/dashboard')
       return
     }
@@ -96,59 +103,41 @@ export default function RegisterPage() {
 
         <div className="bg-white rounded-2xl shadow-2xl p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-1">新規登録</h2>
-          <p className="text-sm text-gray-500 mb-6">スタッフから教わった合言葉で登録できます</p>
+          <p className="text-sm text-gray-500 mb-6">合言葉を入力して登録してください</p>
 
           <form onSubmit={handleRegister} className="space-y-4">
 
-            {/* お名前 */}
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">
                 お名前 <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                required
-                placeholder="山田 太郎"
-                value={form.name}
+              <input type="text" required placeholder="山田 太郎" value={form.name}
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                autoComplete="name"
-              />
+                autoComplete="name" />
             </div>
 
-            {/* メールアドレス */}
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">
                 メールアドレス <span className="text-red-500">*</span>
               </label>
-              <input
-                type="email"
-                required
-                placeholder="example@email.com"
-                value={form.email}
+              <input type="email" required placeholder="example@email.com" value={form.email}
                 onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                autoComplete="email"
-              />
+                autoComplete="email" />
             </div>
 
-            {/* パスワード */}
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">
                 パスワード <span className="text-red-500">*</span>
                 <span className="text-xs text-gray-400 ml-1">（6文字以上）</span>
               </label>
               <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={6}
-                  placeholder="6文字以上"
-                  value={form.password}
+                <input type={showPassword ? 'text' : 'password'} required minLength={6}
+                  placeholder="6文字以上" value={form.password}
                   onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  autoComplete="new-password"
-                />
+                  autoComplete="new-password" />
                 <button type="button" onClick={() => setShowPassword(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -156,23 +145,17 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* 合言葉 */}
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">
                 合言葉 <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  required
-                  placeholder="スタッフに確認してください"
-                  value={form.code}
+                <input type="text" required placeholder="スタッフから教わった合言葉" value={form.code}
                   onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                  className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
-              <p className="text-xs text-gray-400 mt-1">※ スタッフから伝えられた合言葉を入力してください</p>
+              <p className="text-xs text-gray-400 mt-1">※ 会員・スタッフそれぞれ合言葉が異なります</p>
             </div>
 
             {error && (

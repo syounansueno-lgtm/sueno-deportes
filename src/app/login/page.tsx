@@ -130,11 +130,21 @@ export default function LoginPage() {
                     {loading ? 'ログイン中...' : 'ログイン'}
                   </Button>
                 </form>
+                {/* 会員登録リンク */}
                 <div className="mt-4 text-center text-sm text-gray-500">
-                  アカウントをお持ちでない方は{' '}
+                  はじめての方は{' '}
                   <Link href="/register" className="text-green-700 font-medium hover:underline">
                     新規登録
                   </Link>
+                </div>
+
+                {/* スタッフ入口 */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <Link href="/register"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border-2 border-gray-200 text-sm text-gray-500 hover:border-green-400 hover:text-green-700 hover:bg-green-50 transition-colors font-medium">
+                    🔑 スタッフの方はこちらから登録
+                  </Link>
+                  <p className="text-xs text-center text-gray-400 mt-1.5">スタッフ専用の合言葉で登録してください</p>
                 </div>
               </CardContent>
             </>
