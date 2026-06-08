@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 
 // クラブのメンバーコード（オーナーが会員に伝える合言葉）
-const MEMBER_CODE = 'verdy2025'
+const MEMBER_CODE = 'v1999'
 
 export default function RegisterPage() {
   const router = useRouter()
