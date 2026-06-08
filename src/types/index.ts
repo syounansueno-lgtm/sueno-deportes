@@ -87,6 +87,68 @@ export type Payment = {
   created_at: string
 }
 
+export type Player = {
+  id: string
+  name: string
+  number: string | null
+  position: string | null
+  sport: string
+  active: boolean
+  created_at: string
+}
+
+export type PlayerGoal = {
+  id: string
+  player_id: string
+  year: number
+  semester: 'annual' | 'first' | 'second'
+  content: string
+  updated_at: string
+}
+
+export type PlayerComment = {
+  id: string
+  player_id: string
+  match_id: string | null
+  comment: string
+  created_by: string
+  created_at: string
+}
+
+export type PlayerPhysicalLog = {
+  id: string
+  player_id: string
+  log_date: string
+  menu: string | null
+  distance_km: number | null
+  notes: string | null
+  created_by: string
+  created_at: string
+}
+
+export type PhysicalCheckItem = {
+  id: string
+  label: string
+  sort_order: number
+  created_at: string
+}
+
+export type PlayerPhysicalCheck = {
+  id: string
+  player_id: string
+  item_id: string
+  checked: boolean
+  comment: string | null
+  updated_at: string
+}
+
+export type TrainerComment = {
+  id: string
+  content: string
+  created_by: string
+  created_at: string
+}
+
 export type WordPressPost = {
   id: number
   title: { rendered: string }

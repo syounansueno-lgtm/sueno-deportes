@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Megaphone, Clock, Users, ShoppingBag, Library,
   Package, Phone, Calendar, LogOut, ChevronRight,
-  Shield, Home, Menu, X, Image, BookOpen, Trophy, Banknote
+  Shield, Home, Menu, X, Image, BookOpen, Trophy, Banknote, Stethoscope
 } from 'lucide-react'
 import type { Profile } from '@/types'
 
@@ -21,16 +21,18 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'ホーム', icon: Home },
-  { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
-  { href: '/dashboard/attendance', label: '勤怠・日報', icon: Clock },
-  { href: '/dashboard/members', label: '会員管理', icon: Users },
-  { href: '/dashboard/schedule', label: '予定・カレンダー', icon: Calendar },
+  { href: '/dashboard/players', label: '選手ノート', icon: Users },
   { href: '/dashboard/matches', label: '試合結果', icon: Trophy },
-  { href: '/dashboard/merchandise', label: '物販・注文', icon: ShoppingBag },
-  { href: '/dashboard/library', label: '共有ライブラリ', icon: Library },
-  { href: '/dashboard/equipment', label: '忘れ物・備品', icon: Package },
+  { href: '/dashboard/trainer', label: 'トレーナーコメント', icon: Stethoscope },
+  { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
+  { href: '/dashboard/schedule', label: '予定・カレンダー', icon: Calendar },
   { href: '/dashboard/album', label: '写真アルバム', icon: Image },
-  { href: '/dashboard/diary', label: '活動日記', icon: BookOpen },
+  { href: '/dashboard/attendance', label: '勤怠・日報', icon: Clock, staffOrAdminOnly: true },
+  { href: '/dashboard/members', label: '会員管理', icon: Users, staffOrAdminOnly: true },
+  { href: '/dashboard/merchandise', label: '物販・注文', icon: ShoppingBag, staffOrAdminOnly: true },
+  { href: '/dashboard/library', label: '共有ライブラリ', icon: Library, staffOrAdminOnly: true },
+  { href: '/dashboard/equipment', label: '忘れ物・備品', icon: Package, staffOrAdminOnly: true },
+  { href: '/dashboard/diary', label: '活動日記', icon: BookOpen, staffOrAdminOnly: true },
   { href: '/dashboard/finance', label: '経理・会費', icon: Banknote, staffOrAdminOnly: true },
   { href: '/dashboard/emergency', label: '緊急連絡', icon: Phone, adminOnly: true },
 ]
@@ -66,7 +68,7 @@ export default function Sidebar({ profile, unreadBadge, unreadCount = 0 }: Props
           </div>
           <div className="min-w-0">
             <p className="font-bold text-sm">ヴェルディ相模原</p>
-            <p className="text-gray-400 text-xs">スタッフ管理システム</p>
+            <p className="text-gray-400 text-xs">選手ノート</p>
           </div>
           {/* モバイル：閉じるボタン */}
           <button
