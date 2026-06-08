@@ -27,13 +27,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
   { href: '/dashboard/schedule', label: '予定・カレンダー', icon: Calendar },
   { href: '/dashboard/album', label: '写真アルバム', icon: Image },
-  { href: '/dashboard/attendance', label: '勤怠・日報', icon: Clock, staffOrAdminOnly: true },
-  { href: '/dashboard/members', label: '会員管理', icon: Users, staffOrAdminOnly: true },
-  { href: '/dashboard/merchandise', label: '物販・注文', icon: ShoppingBag, staffOrAdminOnly: true },
   { href: '/dashboard/library', label: '共有ライブラリ', icon: Library, staffOrAdminOnly: true },
   { href: '/dashboard/equipment', label: '忘れ物・備品', icon: Package, staffOrAdminOnly: true },
   { href: '/dashboard/diary', label: '活動日記', icon: BookOpen, staffOrAdminOnly: true },
-  { href: '/dashboard/finance', label: '経理・会費', icon: Banknote, staffOrAdminOnly: true },
   { href: '/dashboard/emergency', label: '緊急連絡', icon: Phone, adminOnly: true },
 ]
 
