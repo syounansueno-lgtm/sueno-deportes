@@ -24,9 +24,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/players', label: '選手ノート', icon: Users },
   { href: '/dashboard/matches', label: '試合結果', icon: Trophy },
   { href: '/dashboard/trainer', label: 'トレーナーコメント', icon: Stethoscope },
-  { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
-  { href: '/dashboard/album', label: '写真アルバム', icon: Image },
-  { href: '/dashboard/diary', label: '活動日記', icon: BookOpen, staffOrAdminOnly: true },
   { href: '/dashboard/emergency', label: '緊急連絡', icon: Phone, adminOnly: true },
 ]
 
