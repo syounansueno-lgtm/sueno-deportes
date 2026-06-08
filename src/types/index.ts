@@ -153,6 +153,15 @@ export type TrainingMenu = {
   created_at: string
 }
 
+export type PlayerMenuComment = {
+  id: string
+  player_id: string
+  menu_id: string
+  comment: string
+  created_by: string
+  created_at: string
+}
+
 export type MatchPlayerEvaluation = {
   id: string
   match_id: string

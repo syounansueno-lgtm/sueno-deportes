@@ -7,10 +7,10 @@ import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import {
   ArrowLeft, Target, MessageSquare, Dumbbell, Plus, Pencil,
-  Check, X, Trash2, ChevronDown, ChevronUp, AlertTriangle
+  Check, X, Trash2, ChevronDown, ChevronUp, AlertTriangle, ClipboardList
 } from 'lucide-react'
 import Link from 'next/link'
-import type { Player, PlayerGoal, PlayerComment, PlayerPhysicalLog, PhysicalCheckItem, PlayerPhysicalCheck } from '@/types'
+import type { Player, PlayerGoal, PlayerComment, PlayerPhysicalLog, PhysicalCheckItem, PlayerPhysicalCheck, TrainingMenu, PlayerMenuComment } from '@/types'
 
 type Match = { id: string; opponent: string; match_date: string }
 
@@ -28,6 +28,8 @@ export default function PlayerNotebookPage() {
   const [checkItems, setCheckItems] = useState<PhysicalCheckItem[]>([])
   const [playerChecks, setPlayerChecks] = useState<PlayerPhysicalCheck[]>([])
   const [matches, setMatches] = useState<Match[]>([])
+  const [trainingMenus, setTrainingMenus] = useState<TrainingMenu[]>([])
+  const [menuComments, setMenuComments] = useState<PlayerMenuComment[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -56,9 +58,16 @@ export default function PlayerNotebookPage() {
   const [editingCheckId, setEditingCheckId] = useState<string | null>(null)
   const [checkComment, setCheckComment] = useState('')
 
+  // メニューコメントフォーム
+  const [showMenuCommentForm, setShowMenuCommentForm] = useState(false)
+  const [menuCommentForm, setMenuCommentForm] = useState({ menu_id: '', comment: '' })
+  const [submittingMenuComment, setSubmittingMenuComment] = useState(false)
+  const [editingMenuCommentId, setEditingMenuCommentId] = useState<string | null>(null)
+  const [editingMenuCommentText, setEditingMenuCommentText] = useState('')
+
   // セクション開閉
   const [openSections, setOpenSections] = useState({
-    goals: true, checks: true, comments: true, physical: true
+    goals: true, checks: true, comments: true, menuComments: true, physical: true
   })
   const toggleSection = (s: keyof typeof openSections) =>
     setOpenSections(prev => ({ ...prev, [s]: !prev[s] }))
@@ -70,7 +79,7 @@ export default function PlayerNotebookPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [profileRes, playerRes, goalsRes, commentsRes, physicalRes, matchesRes, itemsRes, checksRes] = await Promise.all([
+      const [profileRes, playerRes, goalsRes, commentsRes, physicalRes, matchesRes, itemsRes, checksRes, menusRes, menuCommentsRes] = await Promise.all([
         supabase.from('profiles').select('role').eq('id', user.id).single(),
         supabase.from('players').select('*').eq('id', id).single(),
         supabase.from('player_goals').select('*').eq('player_id', id).eq('year', currentYear),
@@ -79,6 +88,8 @@ export default function PlayerNotebookPage() {
         supabase.from('matches').select('id, opponent, match_date').order('match_date', { ascending: false }).limit(30),
         supabase.from('physical_check_items').select('*').order('sort_order').order('created_at'),
         supabase.from('player_physical_checks').select('*').eq('player_id', id),
+        supabase.from('training_menus').select('*').order('created_at'),
+        supabase.from('player_menu_comments').select('*').eq('player_id', id),
       ])
 
       setIsAdmin(['admin', 'staff'].includes(profileRes.data?.role ?? ''))
@@ -89,6 +100,8 @@ export default function PlayerNotebookPage() {
       setMatches(matchesRes.data ?? [])
       setCheckItems(itemsRes.data ?? [])
       setPlayerChecks(checksRes.data ?? [])
+      setTrainingMenus(menusRes.data ?? [])
+      setMenuComments(menuCommentsRes.data ?? [])
       setLoading(false)
     }
     load()
@@ -168,6 +181,46 @@ export default function PlayerNotebookPage() {
     await supabase.from('physical_check_items').delete().eq('id', itemId)
     setCheckItems(prev => prev.filter(i => i.id !== itemId))
     setPlayerChecks(prev => prev.filter(c => c.item_id !== itemId))
+  }
+
+  // ===== メニューコメント =====
+  async function addMenuComment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!menuCommentForm.menu_id || !menuCommentForm.comment.trim()) return
+    setSubmittingMenuComment(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('player_menu_comments')
+      .upsert({
+        player_id: id,
+        menu_id: menuCommentForm.menu_id,
+        comment: menuCommentForm.comment.trim(),
+        created_by: user!.id,
+      }, { onConflict: 'player_id,menu_id' })
+      .select().single()
+    if (data) {
+      setMenuComments(prev => {
+        const exists = prev.find(c => c.menu_id === menuCommentForm.menu_id)
+        return exists ? prev.map(c => c.menu_id === menuCommentForm.menu_id ? data : c) : [...prev, data]
+      })
+      setMenuCommentForm({ menu_id: '', comment: '' })
+      setShowMenuCommentForm(false)
+    }
+    setSubmittingMenuComment(false)
+  }
+
+  async function saveMenuCommentEdit(commentId: string) {
+    if (!editingMenuCommentText.trim()) return
+    const { data } = await supabase.from('player_menu_comments')
+      .update({ comment: editingMenuCommentText.trim() }).eq('id', commentId).select().single()
+    if (data) setMenuComments(prev => prev.map(c => c.id === commentId ? data : c))
+    setEditingMenuCommentId(null)
+    setEditingMenuCommentText('')
+  }
+
+  async function deleteMenuComment(commentId: string) {
+    if (!window.confirm('このコメントを削除しますか？')) return
+    await supabase.from('player_menu_comments').delete().eq('id', commentId)
+    setMenuComments(prev => prev.filter(c => c.id !== commentId))
   }
 
   // ===== コーチコメント =====
@@ -467,6 +520,127 @@ export default function PlayerNotebookPage() {
                 </button>
               )
             )}
+          </div>
+        )}
+      </div>
+
+      {/* ===== トレーニングメニューコメント ===== */}
+      <div className="bg-white rounded-2xl border border-gray-200 mb-4 overflow-hidden">
+        <button
+          onClick={() => toggleSection('menuComments')}
+          className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2 font-bold text-gray-900">
+            <ClipboardList size={18} className="text-purple-500" />
+            トレーニングメニューコメント
+            <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{menuComments.length}</span>
+          </div>
+          {openSections.menuComments ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+        </button>
+
+        {openSections.menuComments && (
+          <div className="border-t border-gray-100">
+            {isAdmin && (
+              <div className="px-5 pt-4 pb-2">
+                {showMenuCommentForm ? (
+                  <form onSubmit={addMenuComment} className="bg-purple-50 rounded-xl p-4">
+                    <div className="mb-3">
+                      <label className="text-xs font-medium text-gray-600 block mb-1">メニューを選ぶ <span className="text-red-500">*</span></label>
+                      <select
+                        required
+                        value={menuCommentForm.menu_id}
+                        onChange={e => setMenuCommentForm(f => ({ ...f, menu_id: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      >
+                        <option value="">選択してください</option>
+                        {trainingMenus.map(m => (
+                          <option key={m.id} value={m.id}>{m.title}{m.category ? ` (${m.category})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <textarea
+                      autoFocus rows={3} required
+                      value={menuCommentForm.comment}
+                      onChange={e => setMenuCommentForm(f => ({ ...f, comment: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none mb-3"
+                      placeholder="取り組み状況・アドバイスなど..."
+                    />
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={submittingMenuComment || !menuCommentForm.menu_id || !menuCommentForm.comment.trim()}
+                        className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-40">
+                        {submittingMenuComment ? '保存中...' : '保存する'}
+                      </button>
+                      <button type="button" onClick={() => setShowMenuCommentForm(false)}
+                        className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200">
+                        キャンセル
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setShowMenuCommentForm(true)}
+                    className="flex items-center gap-2 text-sm text-purple-600 font-medium hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-2.5 rounded-xl w-full transition-colors"
+                  >
+                    <Plus size={16} /> コメントを追加
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="divide-y divide-gray-100 px-5 py-2">
+              {menuComments.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">コメントはまだありません</p>
+              ) : (
+                menuComments.map(mc => {
+                  const menu = trainingMenus.find(m => m.id === mc.menu_id)
+                  const isEditingThis = editingMenuCommentId === mc.id
+                  return (
+                    <div key={mc.id} className="py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          {/* メニュー名バッジ */}
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span className="text-xs bg-purple-100 text-purple-700 font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <ClipboardList size={11} />
+                              {menu?.title ?? '不明なメニュー'}
+                            </span>
+                            {menu?.category && (
+                              <span className="text-xs text-gray-400">{menu.category}</span>
+                            )}
+                          </div>
+                          {/* コメント本文 */}
+                          {isEditingThis ? (
+                            <div className="flex gap-2 mt-1">
+                              <textarea
+                                autoFocus rows={2}
+                                value={editingMenuCommentText}
+                                onChange={e => setEditingMenuCommentText(e.target.value)}
+                                className="flex-1 border border-purple-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                              />
+                              <div className="flex flex-col gap-1">
+                                <button onClick={() => saveMenuCommentEdit(mc.id)} className="p-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700"><Check size={14} /></button>
+                                <button onClick={() => setEditingMenuCommentId(null)} className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200"><X size={14} /></button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-800 leading-relaxed">{mc.comment}</p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">{format(new Date(mc.created_at), 'yyyy/M/d', { locale: ja })}</p>
+                        </div>
+                        {isAdmin && !isEditingThis && (
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => { setEditingMenuCommentId(mc.id); setEditingMenuCommentText(mc.comment) }}
+                              className="text-gray-300 hover:text-purple-500 p-1"><Pencil size={13} /></button>
+                            <button onClick={() => deleteMenuComment(mc.id)}
+                              className="text-gray-300 hover:text-red-400 p-1"><Trash2 size={13} /></button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         )}
       </div>
