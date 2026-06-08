@@ -26,7 +26,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/trainer', label: 'トレーナーコメント', icon: Stethoscope },
   { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
   { href: '/dashboard/album', label: '写真アルバム', icon: Image },
-  { href: '/dashboard/equipment', label: '忘れ物・備品', icon: Package, staffOrAdminOnly: true },
   { href: '/dashboard/diary', label: '活動日記', icon: BookOpen, staffOrAdminOnly: true },
   { href: '/dashboard/emergency', label: '緊急連絡', icon: Phone, adminOnly: true },
 ]
