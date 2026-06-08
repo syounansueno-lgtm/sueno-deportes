@@ -11,39 +11,20 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const now = new Date().toISOString()
 
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const [profileRes, announcementsRes, myReadsRes, upcomingEventsRes] = await Promise.all([
+    supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+    supabase.from('announcements').select('id, title, is_urgent').or(`expires_at.is.null,expires_at.gt.${now}`).order('published_at', { ascending: false }).limit(5),
+    supabase.from('announcement_reads').select('announcement_id').eq('user_id', user.id),
+    supabase.from('events').select('id, title, start_at, location').gte('start_at', now).order('start_at').limit(3),
+  ])
 
-  // 未読告知
-  const { data: announcements } = await supabase
-    .from('announcements')
-    .select('id, title, is_urgent, published_at')
-    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-    .order('published_at', { ascending: false })
-    .limit(5)
+  const readIds = new Set((myReadsRes.data ?? []).map((r: { announcement_id: string }) => r.announcement_id))
+  const unreadAnnouncements = (announcementsRes.data ?? []).filter(a => !readIds.has(a.id))
+  const upcomingEvents = upcomingEventsRes.data
+  const p = profileRes.data
 
-  const { data: myReads } = await supabase
-    .from('announcement_reads')
-    .select('announcement_id')
-    .eq('user_id', user.id)
-
-  const readIds = new Set((myReads ?? []).map((r: { announcement_id: string }) => r.announcement_id))
-  const unreadAnnouncements = (announcements ?? []).filter(a => !readIds.has(a.id))
-
-  // 直近のイベント
-  const { data: upcomingEvents } = await supabase
-    .from('events')
-    .select('id, title, start_at, location')
-    .gte('start_at', new Date().toISOString())
-    .order('start_at')
-    .limit(3)
-
-  const p = profile as Profile | null
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
