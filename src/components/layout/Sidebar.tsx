@@ -27,7 +27,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/announcements', label: '重要告知', icon: Megaphone },
   { href: '/dashboard/schedule', label: '予定・カレンダー', icon: Calendar },
   { href: '/dashboard/album', label: '写真アルバム', icon: Image },
-  { href: '/dashboard/library', label: '共有ライブラリ', icon: Library, staffOrAdminOnly: true },
   { href: '/dashboard/equipment', label: '忘れ物・備品', icon: Package, staffOrAdminOnly: true },
   { href: '/dashboard/diary', label: '活動日記', icon: BookOpen, staffOrAdminOnly: true },
   { href: '/dashboard/emergency', label: '緊急連絡', icon: Phone, adminOnly: true },

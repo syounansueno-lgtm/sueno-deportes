@@ -164,12 +164,12 @@ export default function MatchDetailPage() {
         {match.notes && <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-xl px-4 py-2">{match.notes}</p>}
       </div>
 
-      {/* 選手評価ヘッダー */}
+      {/* 選手へのコメントヘッダー */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Users size={20} className="text-green-600" />
-            選手評価
+            選手へのコメント
           </h2>
           <p className="text-xs text-gray-400 mt-0.5">{evaluations.length}名評価済み・{unevaluatedPlayers.length}名未評価</p>
         </div>

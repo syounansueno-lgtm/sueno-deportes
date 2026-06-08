@@ -370,7 +370,7 @@ export default function MatchesPage() {
                     <Link
                       href={`/dashboard/matches/${match.id}`}
                       className="text-green-600 hover:text-green-700 p-1.5 rounded-lg hover:bg-green-50 transition-colors"
-                      title="選手評価"
+                      title="選手へのコメント"
                     >
                       <Star size={16} />
                     </Link>
