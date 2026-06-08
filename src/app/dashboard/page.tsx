@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { Megaphone, Clock, Users, Calendar, AlertTriangle } from 'lucide-react'
+import { Megaphone, Users, Calendar, AlertTriangle } from 'lucide-react'
 import type { Profile } from '@/types'
 
 export default async function DashboardPage() {
@@ -34,14 +34,6 @@ export default async function DashboardPage() {
 
   const readIds = new Set((myReads ?? []).map((r: { announcement_id: string }) => r.announcement_id))
   const unreadAnnouncements = (announcements ?? []).filter(a => !readIds.has(a.id))
-
-  // 今日の打刻
-  const { data: todayCard } = await supabase
-    .from('timecards')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('date', today)
-    .single()
 
   // 直近のイベント
   const { data: upcomingEvents } = await supabase
@@ -85,46 +77,6 @@ export default async function DashboardPage() {
         </Link>
       )}
 
-      {/* 今日の打刻ステータス */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              todayCard?.clock_in && todayCard?.clock_out
-                ? 'bg-blue-100'
-                : todayCard?.clock_in
-                ? 'bg-green-100'
-                : 'bg-gray-100'
-            }`}>
-              <Clock size={20} className={
-                todayCard?.clock_in && todayCard?.clock_out
-                  ? 'text-blue-500'
-                  : todayCard?.clock_in
-                  ? 'text-green-500'
-                  : 'text-gray-400'
-              } />
-            </div>
-            <div>
-              <p className="font-medium text-gray-800">本日の勤怠</p>
-              <p className="text-xs text-gray-500">
-                {!todayCard?.clock_in
-                  ? '未打刻'
-                  : !todayCard?.clock_out
-                  ? `出勤中 (${format(new Date(todayCard.clock_in), 'HH:mm')} 〜)`
-                  : `${format(new Date(todayCard.clock_in), 'HH:mm')} 〜 ${format(new Date(todayCard.clock_out), 'HH:mm')}`
-                }
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/attendance"
-            className="text-sm text-green-600 font-medium"
-          >
-            打刻する →
-          </Link>
-        </div>
-      </div>
-
       {/* クイックアクセス */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <Link href="/dashboard/announcements" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
@@ -137,18 +89,10 @@ export default async function DashboardPage() {
           </p>
         </Link>
 
-        <Link href="/dashboard/attendance" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
-          <Clock size={24} className="text-blue-600 mb-2" />
-          <p className="font-semibold text-gray-800">勤怠・日報</p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {todayCard?.clock_in ? 'タップして退勤' : '出勤打刻する'}
-          </p>
-        </Link>
-
-        <Link href="/dashboard/members" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
-          <Users size={24} className="text-purple-600 mb-2" />
-          <p className="font-semibold text-gray-800">会員管理</p>
-          <p className="text-xs text-gray-500 mt-0.5">メンバー一覧</p>
+        <Link href="/dashboard/players" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+          <Users size={24} className="text-green-600 mb-2" />
+          <p className="font-semibold text-gray-800">選手ノート</p>
+          <p className="text-xs text-gray-500 mt-0.5">選手一覧を見る</p>
         </Link>
 
         <Link href="/dashboard/schedule" className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
